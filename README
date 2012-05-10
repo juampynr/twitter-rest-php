@@ -1,0 +1,10 @@
+This library is used by Drupal's Twitter module.
+
+If you want to use it for other purposes, just change variable_get('twitter_api', TWITTER_API) by
+http://api.twitter.com and you should be ready to start using it.
+
+The reason why these two statements have not been abstracted out of the class into properties is
+because I need to be able to change the API host when running tests. I am very open to suggestions
+about how this could be abstracted. See
+http://drupalcode.org/project/twitter.git/blob/f4a03bb6fb9132fbfc6c6206e9a58f6841edfd3d:/tests/twitter_mock.module
+for more details on how the API is simulated during Simpletests run.
