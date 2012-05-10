@@ -2,6 +2,7 @@
 /**
  * @file
  * Classes to implement the full Twitter API
+ * version 1.0
  *
  * Original work my James Walker (@walkah)
  */
