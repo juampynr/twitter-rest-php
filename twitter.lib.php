@@ -411,8 +411,6 @@ class Twitter {
   /**
    * Sends a new direct message to the specified user from the authenticating user.
    *
-   * One of user_id or screen_name are required.
-   *
    * @param mixed $id
    *   The user ID or the screen name.
    * @param string $text
@@ -430,6 +428,213 @@ class Twitter {
       $params['screen_name'] = $id;
     }
     return $this->call('direct_messages/new', $params, 'POST', TRUE);
+  }
+
+  /********************************************//**
+   * Friends & Followers
+   ***********************************************/
+  /**
+   * Returns a cursored collection of user IDs for every user the specified user
+   * is following.
+   *
+   * @param mixed $id
+   *   The user ID or the screen name.
+   * @return
+   *   An array of user IDS.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/friends/ids
+   */
+  public function friends_ids($id, $params = array()) {
+    if (is_numeric($id)) {
+      $params['user_id'] = $id;
+    }
+    else {
+      $params['screen_name'] = $id;
+    }
+    return $this->get_statuses('friends/ids', $params);
+  }
+
+  /**
+   * Returns a cursored collection of user IDs for every user following the
+   * specified user.
+   *
+   * @param mixed $id
+   *   The user ID or the screen name.
+   * @return
+   *   An array of user IDS.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/followers/ids
+   */
+  public function followers_ids($id, $params = array()) {
+    if (is_numeric($id)) {
+      $params['user_id'] = $id;
+    }
+    else {
+      $params['screen_name'] = $id;
+    }
+    return $this->get_statuses('followers/ids', $params);
+  }
+
+  /**
+   * Returns the relationships of the authenticating user to the
+   * comma-separated list of up to 100 screen_names or user_ids provided.
+   *
+   * @param string $screen_name
+   *   A comma separated list of screen names.
+   * @param string $user_id
+   *   A comma separated list of user IDs.
+   * @return
+   *   An array of user IDs and relationships.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/friendships/lookup
+   */
+  public function friendships_lookup($screen_name = '', $user_id = '') {
+    if (!empty($screen_name)) {
+      $params['screen_name'] = $screen_name;
+    }
+    if (!empty($user_id)) {
+      $params['user_id'] = $user_id;
+    }
+    return $this->get_statuses('friendships/lookup', $params);
+  }
+
+  /**
+   * Returns a collection of numeric IDs for every user who has a pending
+   * request to follow the authenticating user.
+   *
+   * @param array $params
+   *   An array of parameters.
+   * @return
+   *   An array of numeric user IDs.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/friendships/incoming
+   */
+  public function friendships_incoming($params = array()) {
+    return $this->get_statuses('friendships/incoming', $params);
+  }
+
+  /**
+   * Returns a collection of numeric IDs for every protected user for whom
+   * the authenticating user has a pending follow request.
+   *
+   * @param array $params
+   *   An array of parameters.
+   * @return
+   *   An array of numeric user IDs.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/friendships/outgoing
+   */
+  public function friendships_outgoing($params = array()) {
+    return $this->get_statuses('friendships/outgoing', $params);
+  }
+
+  /**
+   * Allows the authenticating users to follow the user specified in the
+   * ID parameter.
+   *
+   * @param mixed $id
+   *   The user ID or the screen name.
+   * @param bool $follow
+   *   Wether to enable notifications for the target user.
+   * @return
+   *   The befriended user in the requested format when successful, or a
+   *   string describing the failure condition when unsuccessful.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/post/friendships/create
+   */
+  public function friendships_create($id, $follow = NULL) {
+    if (is_numeric($id)) {
+      $params['user_id'] = $id;
+    }
+    else {
+      $params['screen_name'] = $id;
+    }
+    if ($follow !== NULL) {
+      $params['follow'] = $id;
+    }
+    return $this->call('friendships/create', $params, 'POST', TRUE);
+  }
+
+  /**
+   * Allows the authenticating user to unfollow the user specified in the
+   * ID parameter.
+   *
+   * @param mixed $id
+   *   The user ID or the screen name.
+   * @return
+   *   The unfollowed user in the requested format when successful, or a
+   *   string describing the failure condition when unsuccessful.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/post/friendships/destroy
+   */
+  public function friendships_destroy($id) {
+    $params = array();
+    if (is_numeric($id)) {
+      $params['user_id'] = $id;
+    }
+    else {
+      $params['screen_name'] = $id;
+    }
+    return $this->call('friendships/destroy', $params, 'POST', TRUE);
+  }
+
+  /**
+   * Allows one to enable or disable retweets and device notifications
+   * from the specified user.
+   *
+   * @param mixed $id
+   *   The user ID or the screen name.
+   * @param bool $device
+   *   Whether to enable/disable device notifications from the target user.
+   * @param bool $retweets
+   *   Whether to enable/disable retweets from the target user.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/post/friendships/update
+   */
+  public function friendships_update($id, $device = NULL, $retweets = NULL) {
+    $params = array();
+    if (is_numeric($id)) {
+      $params['user_id'] = $id;
+    }
+    else {
+      $params['screen_name'] = $id;
+    }
+    if ($device !== NULL) {
+      $params['device'] = $device;
+    }
+    if ($retweets!== NULL) {
+      $params['retweets'] = $retweets;
+    }
+    return $this->call('friendships/update', $params, 'POST', TRUE);
+  }
+
+  /**
+   * Returns detailed information about the relationship between two arbitrary
+   * users.
+   *
+   * @param mixed $source_id
+   *   The user ID or the screen name of the subject user.
+   * @param mixed $target_id
+   *   The user ID or the screen name of the target user.
+   * @return
+   *   An array of numeric user IDs.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/friendships/show
+   */
+  public function friendships_outgoing($source_id, $target_id) {
+    if (is_numeric($source_id)) {
+      $params['source_id'] = $source_id;
+    }
+    else {
+      $params['source_screen_name'] = $source_id;
+    }
+    if (is_numeric($target_id)) {
+      $params['target_id'] = $target_id;
+    }
+    else {
+      $params['target_screen_name'] = $target_id;
+    }
+    return $this->get_statuses('friendships/outgoing', $params);
   }
 
   // The below methods and classes have not been reviewed yet for V 1.1
