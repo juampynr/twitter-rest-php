@@ -24,31 +24,9 @@ class Twitter {
   protected $source = 'drupal';
 
   /**
-   * @var $username Twitter username to use for authenticated requests
-   */
-  protected $username;
-
-  /**
-   * @var $password Twitter password to use for authenticated requests
-   */
-  protected $password;
-
-  /**
    * Constructor for the Twitter class
    */
-  public function __construct($username = NULL, $password = NULL) {
-    if (!empty($username) && !empty($password)) {
-      $this->set_auth($username, $password);
-    }
-  }
-
-  /**
-   * Set the username and password
-   */
-  public function set_auth($username, $password) {
-    $this->username = $username;
-    $this->password = $password;
-  }
+  public function __construct() {}
 
   /**
    * Get an array of TwitterStatus objects from an API endpoint
@@ -224,17 +202,17 @@ class Twitter {
     return new TwitterStatus($values);
   }
 
- /**
-  * Returns information allowing the creation of an embedded representation of
-  * a Tweet on third party sites.
-  *
-  * @param mixed $id
-  *   The Tweet/status ID or the URL of the Tweet/status to be embedded.
-  * @param array $params
-  *   an array of parameters.
-  *
-  * @see https://dev.twitter.com/docs/api/1.1/get/statuses/oembed
-  */
+  /**
+   * Returns information allowing the creation of an embedded representation of
+   * a Tweet on third party sites.
+   *
+   * @param mixed $id
+   *   The Tweet/status ID or the URL of the Tweet/status to be embedded.
+   * @param array $params
+   *   an array of parameters.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/statuses/oembed
+   */
   public function statuses_oembed($id, $params = array()) {
     if (is_numeric($id)) {
       $params['id'] = $id;
@@ -249,6 +227,212 @@ class Twitter {
    * Search
    ***********************************************/
   /**
+   * Returns a collection of relevant Tweets matching a specified query.
+   *
+   * @param string $query
+   *   A UTF-8, URL-encoded search query of 1,000 characters maximum,
+   *   including operators.
+   * @param array $params
+   *   an array of parameters.
+   * @return
+   *   array of Twitter statuses.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/search/tweets
+   */
+  public function search_tweets($query, $params = array()) {
+    $params['q'] = $query;
+    return $this->get_statuses('statuses/oembed', $params);
+  }
+
+  /********************************************//**
+   * Streaming
+   ***********************************************/
+  /**
+   * Returns public statuses that match one or more filter predicates.
+   *
+   * At least one predicate parameter (follow, locations, or track) must be specified.
+   *
+   * @param string $follow
+   *   A comma separated list of user IDs.
+   * @param string $track
+   *   Keywords to track.
+   * @param string $locations
+   *   Specifies a set of bounding boxes to track.
+   * @param array $params
+   *   an array of parameters.
+   * @return
+   *   array of Twitter statuses.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/post/statuses/filter
+   */
+  public function statuses_filter($follow = '', $track = '', $locations = '', $params = array()) {
+    if (!empty($follow)) {
+      $params['follow'] = $follow;
+    }
+    if (!empty($track)) {
+      $params['track'] = $track;
+    }
+    if (!empty($locations)) {
+      $params['locations'] = $locations;
+    }
+    return $this->call('statuses/filter', $params, 'POST', TRUE);
+  }
+
+  /**
+   * Returns a small random sample of all public statuses.
+   *
+   * @param array $params
+   *   an array of parameters.
+   * @return
+   *   array of Twitter statuses.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/statuses/sample
+   */
+  public function statuses_sample($params = array()) {
+    return $this->get_statuses('statuses/sample', $params);
+  }
+
+  /**
+   * Returns all public statuses. Few applications require this level of access.
+   *
+   * @param array $params
+   *   an array of parameters.
+   * @return
+   *   array of Twitter statuses.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/statuses/firehose
+   */
+  public function statuses_sample($params = array()) {
+    return $this->get_statuses('statuses/firehose', $params);
+  }
+
+  /**
+   * Streams messages for a single user.
+   *
+   * @param array $params
+   *   an array of parameters.
+   * @return
+   *   array of Twitter statuses.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/user
+   */
+  public function user($params = array()) {
+    return $this->get_statuses('user', $params);
+  }
+
+  /**
+   * Streams messages for a set of users.
+   *
+   * @param string $follow
+   *   A comma separated list of user IDs
+   * @param array $params
+   *   an array of parameters.
+   * @return
+   *   array of Twitter statuses.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/site
+   */
+  public function site($follow, $params = array()) {
+    $params['follow'] = $follow;
+    return $this->get_statuses('site', $params);
+  }
+
+  /********************************************//**
+   * Direct Messages
+   ***********************************************/
+  /**
+   * Returns the 20 most recent direct messages sent to the authenticating user.
+   *
+   * This method requires an access token with RWD (read, write & direct message)
+   * permissions
+   *
+   * @param array $params
+   *   an array of parameters.
+   * @return
+   *   array of Twitter statuses.
+   * @see https://dev.twitter.com/docs/api/1.1/get/direct_messages
+   */
+  public function direct_messages($params = array()) {
+    return $this->get_statuses('direct_messages', $params);
+  }
+
+  /**
+   * Returns the 20 most recent direct messages sent by the authenticating user.
+   *
+   * This method requires an access token with RWD (read, write & direct message)
+   * permissions
+   *
+   * @param array $params
+   *   An array of parameters.
+   * @return
+   *   Array of Twitter statuses.
+   * @see https://dev.twitter.com/docs/api/1.1/get/direct_messages/sent
+   */
+  public function direct_messages_sent($params = array()) {
+    return $this->get_statuses('direct_messages/sent', $params);
+  }
+
+  /**
+   * Returns a single direct message, specified by an id parameter.
+   *
+   * This method requires an access token with RWD (read, write & direct message)
+   * permissions
+   *
+   * @param int $id
+   *   The ID of the direct message.
+   * @return
+   *   array of Twitter statuses.
+   * @see https://dev.twitter.com/docs/api/1.1/get/direct_messages/show
+   */
+  public function direct_messages_show($id) {
+    $params = array('id' => $id);
+    return $this->get_statuses('direct_messages/show', $params);
+  }
+
+  /**
+   * Destroys the direct message specified in the required ID parameter.
+   *
+   * This method requires an access token with RWD (read, write & direct message)
+   * permissions
+   *
+   * @param int $id
+   *   The ID of the direct message.
+   * @param array $params
+   *   An array of parameters.
+   * @return
+   *   The deleted direct message
+   * @see https://dev.twitter.com/docs/api/1.1/post/direct_messages/destroy
+   */
+  public function direct_messages_destroy($id, $params = array()) {
+    $params['id'] = $id;
+    return $this->get_statuses('direct_messages/destroy', $params);
+  }
+
+  /**
+   * Sends a new direct message to the specified user from the authenticating user.
+   *
+   * One of user_id or screen_name are required.
+   *
+   * @param mixed $id
+   *   The user ID or the screen name.
+   * @param string $text
+   *   The URL encoded text of the message.
+   * @return
+   *   array of Twitter statuses.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/post/direct_messages/new
+   */
+  public function direct_messages_new($id, $params = array()) {
+    if (is_numeric($id)) {
+      $params['user_id'] = $id;
+    }
+    else {
+      $params['screen_name'] = $id;
+    }
+    return $this->call('direct_messages/new', $params, 'POST', TRUE);
+  }
+
+  // The below methods and classes have not been reviewed yet for V 1.1
 
   /**
    *
@@ -435,13 +619,6 @@ class TwitterOAuth extends Twitter {
     }
   }
 
-}
-
-/**
-  * Twitter search is not used in this module yet
-  */
-class TwitterSearch extends Twitter {
-  public function search($params = array()) {}
 }
 
 /**
