@@ -1,10 +1,10 @@
 <?php
 /**
  * @file
- * Classes to implement the full Twitter API
- * version 1.0
+ * Integration layer to communicate with the Twitter REST API 1.1.
  *
- * Original work my James Walker (@walkah)
+ * Original work my James Walker (@walkah).
+ * Upgrade to 1.1 by Juampy (@juampy72).
  */
 
 /**
@@ -14,14 +14,8 @@ class TwitterException extends Exception {}
 
 /**
  * Primary Twitter API implementation class
- * Supports the full REST API for twitter.
  */
 class Twitter {
-
-  /**
-   * @var $format API format to use: can be json or xml
-   */
-  protected $format = 'json';
 
   /**
    * @var $source the twitter api 'source'
@@ -218,28 +212,15 @@ class Twitter {
     }
   }
 
-  protected function parse_response($response, $format = NULL) {
-    if (empty($format)) {
-      $format = $this->format;
-    }
-
-    switch ($format) {
-      case 'json':
-        // http://drupal.org/node/985544 - json_decode large integer issue
-        $length = strlen(PHP_INT_MAX);
-        $response = preg_replace('/"(id|in_reply_to_status_id)":(\d{' . $length . ',})/', '"\1":"\2"', $response);
-        return json_decode($response, TRUE);
-    }
+  protected function parse_response($response) {
+    // http://drupal.org/node/985544 - json_decode large integer issue
+    $length = strlen(PHP_INT_MAX);
+    $response = preg_replace('/"(id|in_reply_to_status_id)":(\d{' . $length . ',})/', '"\1":"\2"', $response);
+    return json_decode($response, TRUE);
   }
 
-  protected function create_url($path, $format = NULL) {
-    if (is_null($format)) {
-      $format = $this->format;
-    }
-    $url =  variable_get('twitter_api', TWITTER_API) .'/1/'. $path;
-    if (!empty($format)) {
-      $url .= '.'. $this->format;
-    }
+  protected function create_url($path) {
+    $url =  variable_get('twitter_api', TWITTER_API) .'/1.1/'. $path;
     return $url;
   }
 }
@@ -261,27 +242,6 @@ class TwitterOAuth extends Twitter {
     if (!empty($oauth_token) && !empty($oauth_token_secret)) {
       $this->token = new OAuthConsumer($oauth_token, $oauth_token_secret);
     }
-  }
-
-  /**
-   * Builds a full URL to perform an OAuth operation
-   *
-   * @param $path
-   *   string the path of the operation
-   * @param $format
-   *   string a valid format
-   * @return
-   *   string full URL
-   */
-  protected function create_url($path, $format = NULL) {
-    if (is_null($format)) {
-      $format = $this->format;
-    }
-    $url =  variable_get('twitter_api', TWITTER_API) .'/'. $path;
-    if (!empty($format)) {
-      $url .= '.'. $this->format;
-    }
-    return $url;
   }
 
   public function get_request_token() {
