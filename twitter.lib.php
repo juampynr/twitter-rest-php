@@ -2,6 +2,7 @@
 /**
  * @file
  * Integration layer to communicate with the Twitter REST API 1.1.
+ * https://dev.twitter.com/docs/api/1.1
  *
  * Original work my James Walker (@walkah).
  * Upgrade to 1.1 by Juampy (@juampy72).
@@ -70,43 +71,184 @@ class Twitter {
     }
   }
 
+  /********************************************//**
+   * Timelines
+   ***********************************************/
+  /**
+   * Returns the 20 most recent mentions (tweets containing a users's @screen_name).
+   *
+   * @param array $params
+   *   an array of parameters.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/statuses/mentions_timeline
+   */
+  public function mentions_timeline($params = array()) {
+    return $this->get_statuses('statuses/mentions_timeline', $params, TRUE);
+  }
+
   /**
    * Fetch a user's timeline
    *
-   * @see http://apiwiki.twitter.com/Twitter-REST-API-Method%3A-statuses-user_timeline
+   * Returns a collection of the most recent Tweets posted by the user indicated
+   * by the screen_name or user_id parameters.
+   *
+   * @param mixed $id
+   *   either a Twitter user_id or a Twitter screen_name.
+   *
+   * @param array $params
+   *   an array of parameters.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/statuses/user_timeline
    */
-  public function user_timeline($id, $params = array(), $use_auth = FALSE) {
+  public function user_timeline($id, $params = array()) {
     if (is_numeric($id)) {
       $params['user_id'] = $id;
     }
     else {
       $params['screen_name'] = $id;
     }
-    return $this->get_statuses('statuses/user_timeline', $params, $use_auth);
+    return $this->get_statuses('statuses/user_timeline', $params);
   }
 
   /**
+   * Returns a collection of the most recent Tweets and retweets posted by
+   * the authenticating user and the users they follow.
    *
-   * @see http://apiwiki.twitter.com/Twitter-REST-API-Method%3A-statuses-mentions
+   * @param array $params
+   *   an array of parameters.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/statuses/home_timeline
    */
-  public function mentions($params = array()) {
-    return $this->get_statuses('statuses/mentions', $params, TRUE);
+  public function home_timeline($params = array()) {
+    return $this->get_statuses('statuses/home_timeline', $params);
   }
 
   /**
+   * Returns the most recent tweets authored by the authenticating user
+   * that have recently been retweeted by others.
    *
-   * @see http://apiwiki.twitter.com/Twitter-REST-API-Method%3A-statuses%C2%A0update
+   * @param array $params
+   *   an array of parameters.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/statuses/retweets_of_me
    */
-  public function status_update($status, $params = array()) {
-    $params['status'] = $status;
-    if ($this->source) {
-      $params['source'] = $this->source;
-    }
+  public function retweets_of_me($params = array()) {
+    return $this->get_statuses('statuses/retweets_of_me', $params);
+  }
+
+  /********************************************//**
+   * Tweets
+   ***********************************************/
+  /**
+   * Returns up to 100 of the first retweets of a given tweet.
+   *
+   * @param int $id
+   *   The numerical ID of the desired status.
+   * @param array $params
+   *   an array of parameters.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/statuses/retweets
+   */
+  public function statuses_retweets($id, $params = array()) {
+    return $this->get_statuses('statuses/retweets/' . $id, $params);
+  }
+
+  /**
+   * Destroys the status specified by the required ID parameter.
+   *
+   * @param array $params
+   *   an array of parameters.
+   *
+   * @return
+   *   TwitterStatus object if successful or FALSE.
+   * @see https://dev.twitter.com/docs/api/1.1/get/statuses/destroy
+   */
+  public function statuses_destroy($id, $params = array()) {
     $values = $this->call('statuses/update', $params, 'POST', TRUE);
+    if ($values) {
+      return new TwitterStatus($values);
+    }
+    else {
+      return FALSE;
+    }
+  }
 
+  /**
+   * Updates the authenticating user's current status, also known as tweeting.
+   *
+   * @param string $status
+   *   The text of the status update (the tweet).
+   * @param array $params
+   *   an array of parameters.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/post/statuses/update
+   */
+  public function statuses_update($status, $params = array()) {
+    $params['status'] = $status;
+    $values = $this->call('statuses/update', $params, 'POST', TRUE);
     return new TwitterStatus($values);
   }
 
+  /**
+   * Retweets a tweet. Returns the original tweet with retweet details embedded.
+   *
+   * @param int $id
+   *   The numerical ID of the desired status.
+   * @param array $params
+   *   an array of parameters.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/post/statuses/retweet/%3Aid
+   */
+  public function statuses_retweet($id, $params = array()) {
+    $values = $this->call('statuses/retweet/' . $id, $params, 'POST', TRUE);
+    return new TwitterStatus($values);
+  }
+
+  /**
+   * Creates a Tweet with a picture attached.
+   *
+   * @param string $status
+   *   The text of the status update (the tweet).
+   * @param array $media
+   *   An array of physical paths of images.
+   * @param array $params
+   *   an array of parameters.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/post/statuses/update_with_media
+   */
+  public function statuses_update_with_media($status, $media, $params = array()) {
+    $params['status'] = $status;
+    $params['media[]'] = '@{' . implode(',', $media) . '}';
+    $values = $this->call('statuses/statuses/update_with_media', $params, 'POST', TRUE);
+    // @TODO support media at TwitterStatus class.
+    return new TwitterStatus($values);
+  }
+
+ /**
+  * Returns information allowing the creation of an embedded representation of
+  * a Tweet on third party sites.
+  *
+  * @param mixed $id
+  *   The Tweet/status ID or the URL of the Tweet/status to be embedded.
+  * @param array $params
+  *   an array of parameters.
+  *
+  * @see https://dev.twitter.com/docs/api/1.1/get/statuses/oembed
+  */
+  public function statuses_oembed($id, $params = array()) {
+    if (is_numeric($id)) {
+      $params['id'] = $id;
+    }
+    else {
+      $params['url'] = $id;
+    }
+    return $this->get_statuses('statuses/oembed', $params);
+  }
+
+  /********************************************//**
+   * Search
+   ***********************************************/
+  /**
 
   /**
    *
@@ -220,7 +362,7 @@ class Twitter {
   }
 
   protected function create_url($path) {
-    $url =  variable_get('twitter_api', TWITTER_API) .'/1.1/'. $path;
+    $url =  variable_get('twitter_api', TWITTER_API) .'/1.1/'. $path . '.json';
     return $url;
   }
 }
@@ -346,7 +488,6 @@ class TwitterStatus {
       $this->user = new TwitterUser($values['user']);
     }
   }
-
 }
 
 class TwitterUser {
