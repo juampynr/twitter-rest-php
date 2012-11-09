@@ -220,7 +220,7 @@ class Twitter {
     else {
       $params['url'] = $id;
     }
-    return $this->get_statuses('statuses/oembed', $params);
+    return $this->call('statuses/oembed', $params, 'GET', TRUE);
   }
 
   /********************************************//**
@@ -451,7 +451,7 @@ class Twitter {
     else {
       $params['screen_name'] = $id;
     }
-    return $this->get_statuses('friends/ids', $params);
+    return $this->call('friends/ids', $params, 'GET', TRUE);
   }
 
   /**
@@ -472,7 +472,7 @@ class Twitter {
     else {
       $params['screen_name'] = $id;
     }
-    return $this->get_statuses('followers/ids', $params);
+    return $this->call('followers/ids', $params, 'GET', TRUE);
   }
 
   /**
@@ -495,7 +495,7 @@ class Twitter {
     if (!empty($user_id)) {
       $params['user_id'] = $user_id;
     }
-    return $this->get_statuses('friendships/lookup', $params);
+    return $this->call('friendships/lookup', $params, 'GET', TRUE);
   }
 
   /**
@@ -510,7 +510,7 @@ class Twitter {
    * @see https://dev.twitter.com/docs/api/1.1/get/friendships/incoming
    */
   public function friendships_incoming($params = array()) {
-    return $this->get_statuses('friendships/incoming', $params);
+    return $this->call('friendships/incoming', $params, 'GET', TRUE);
   }
 
   /**
@@ -525,7 +525,7 @@ class Twitter {
    * @see https://dev.twitter.com/docs/api/1.1/get/friendships/outgoing
    */
   public function friendships_outgoing($params = array()) {
-    return $this->get_statuses('friendships/outgoing', $params);
+    return $this->call('friendships/outgoing', $params, 'GET', TRUE);
   }
 
   /**
@@ -634,8 +634,27 @@ class Twitter {
     else {
       $params['target_screen_name'] = $target_id;
     }
-    return $this->get_statuses('friendships/outgoing', $params);
+    return $this->call('friendships/outgoing', $params, 'GET', TRUE);
   }
+
+  /********************************************//**
+   * Users
+   ***********************************************/
+  /**
+   * Returns settings (including current trend, geo and sleep time
+   * information) for the authenticating user.
+   *
+   * @return
+   *   An array of settings.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/account/settings
+   */
+  public function account_settings() {
+    return $this->call('account/settings', $params, 'GET', TRUE);
+  }
+
+
+
 
   // The below methods and classes have not been reviewed yet for V 1.1
 
