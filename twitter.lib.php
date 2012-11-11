@@ -49,6 +49,27 @@ class Twitter {
     }
   }
 
+  /**
+   * Get an array of TwitterUser objects from an API endpoint
+   */
+  protected function get_users($path, $params = array()) {
+    $values = $this->call($path, $params, 'GET', $use_auth);
+    // Check on successfull call
+    if ($values) {
+      $users = array();
+      foreach ($values as $user) {
+        $users[] = new TwitterUser($user);
+      }
+      return $users;
+    }
+    // Call might return FALSE , e.g. on failed authentication
+    else {
+      // As call allready throws an exception, we can return an empty array to
+      // break no code.
+      return array();
+    }
+  }
+
   /********************************************//**
    * Timelines
    ***********************************************/
@@ -302,7 +323,7 @@ class Twitter {
    *
    * @see https://dev.twitter.com/docs/api/1.1/get/statuses/firehose
    */
-  public function statuses_sample($params = array()) {
+  public function statuses_firehose($params = array()) {
     return $this->get_statuses('statuses/firehose', $params);
   }
 
@@ -653,16 +674,241 @@ class Twitter {
     return $this->call('account/settings', $params, 'GET', TRUE);
   }
 
-
-
-
-  // The below methods and classes have not been reviewed yet for V 1.1
+  /**
+   * Returns an HTTP 200 OK response code and a representation of the
+   * requesting user if authentication was successful; returns a 401
+   * status code and an error message if not.
+   *
+   * @param array $params
+   *   An array of parameters.
+   * @return
+   *   A TwitterUser object or FALSE.
+   * @see https://dev.twitter.com/docs/api/1.1/get/account/verify_credentials
+   */
+  public function verify_credentials($params = array()) {
+    $values = $this->call('account/verify_credentials', $params, 'GET', TRUE);
+    if (!$values) {
+      return FALSE;
+    }
+    return new TwitterUser($values);
+  }
 
   /**
+   * Updates the authenticating user's settings.
    *
-   * @see http://apiwiki.twitter.com/Twitter-REST-API-Method%3A-users%C2%A0show
+   * @param array $params
+   *   An array of parameters.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/post/account/settings
    */
-  public function users_show($id, $use_auth = TRUE) {
+  public function account_settings_update($params = array()) {
+    return $this->call('account/settings', $params, 'POST', TRUE);
+  }
+
+  /**
+   * Sets which device Twitter delivers updates to for the authenticating user.
+   *
+   * @param string $device
+   *   A string which must be one of: sms, none.
+   * @param bool $include_entities
+   *   Whether tweets should include entities or not.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/post/account/update_delivery_device
+   */
+  public function account_update_delivery_device($device, $include_entities = NULL) {
+    $params = array('device' => $device);
+    if ($include_entities !== NULL) {
+      $params['include_entities'] = $include_entities;
+    }
+    return $this->call('account/settings', $params, 'POST', TRUE);
+  }
+
+  /**
+   * Sets values that users are able to set under the "Account" tab of their
+   * settings page.
+   *
+   * @param array $params
+   *   An array of parameters.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/post/account/update_profile
+   */
+  public function account_update_profile($params = array()) {
+    return $this->call('account/update_profile', $params, 'POST', TRUE);
+  }
+
+  /**
+   * Updates the authenticating user's profile background image.
+   *
+   * This method can also be used to enable or disable the profile
+   * background image.
+   * At least one of image, tile or use must be provided when making this
+   * request.
+   *
+   * @param string $image
+   *   A base64-encoded. Must be a valid GIF, JPG, or PNG image of less
+   *   than 800 kilobytes in size.
+   * @param bool $tile
+   *   Whether or not to tile the background image.
+   * @param bool $use
+   *   Whether or not to use the background image.
+   * @param array $params
+   *   An array of parameters.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/post/account/update_profile_background_image
+   */
+  public function account_update_profile_background_image($image = NULL, $tile = NULL,
+                                                          $use = NULL, $params = array()) {
+    if ($image !== NULL) {
+      $params['image'] = $image;
+    }
+    if ($tile !== NULL) {
+      $params['tile'] = $tile;
+    }
+    if ($use !== NULL) {
+      $params['use'] = $use;
+    }
+    return $this->call('account/update_profile_background_image', $params, 'POST', TRUE);
+  }
+
+  /**
+   * Sets one or more hex values that control the color scheme of the
+   * authenticating user's profile page on twitter.com.
+   *
+   * @param array $params
+   *   An array of parameters.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/post/account/update_profile_colors
+   */
+  public function account_update_profile_colors($params = array()) {
+    return $this->call('account_update_profile_colors', $params, 'POST', TRUE);
+  }
+
+  /**
+   * Updates the authenticating user's profile image.
+   *
+   * @param string $image
+   *   The avatar image for the profile, base64-encoded. Must be a valid
+   *   GIF, JPG, or PNG
+   * @param array $params
+   *   An array of parameters.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/post/account/update_profile_image
+   */
+  public function account_update_profile_image($image, $params = array()) {
+    $params['image'] = $image;
+    return $this->call('account_update_profile_image', $params, 'POST', TRUE);
+  }
+
+  /**
+   * Returns a collection of user objects that the authenticating user is
+   * blocking.
+   *
+   * @param array $params
+   *   An array of parameters.
+   * @return
+   *   A TwitterUser object or FALSE.
+   * @see https://dev.twitter.com/docs/api/1.1/get/blocks/list
+   */
+  public function blocks_list($params = array()) {
+    $values = $this->call('blocks/list', $params, 'GET', TRUE);
+    if (!$values) {
+      return FALSE;
+    }
+    return new TwitterUser($values);
+  }
+
+  /**
+   * Returns an array of numeric user ids the authenticating user is blocking.
+   *
+   * @param array $params
+   *   An array of parameters.
+   * @return
+   *   A TwitterUser object or FALSE.
+   * @see https://dev.twitter.com/docs/api/1.1/get/blocks/ids
+   */
+  public function blocks_ids($params = array()) {
+    return $this->call('blocks/ids', $params, 'GET', TRUE);
+  }
+
+  /**
+   * Blocks the specified user from following the authenticating user.
+   *
+   * @param mixed $id
+   *   The numeric id or screen name of a Twitter user.
+   * @param array $params
+   *   An array of parameters.
+   * @see https://dev.twitter.com/docs/api/1.1/post/blocks/create
+   */
+  public function blocks_create($id, $params = array()) {
+    if (is_numeric($id)) {
+      $params['user_id'] = $id;
+    }
+    else {
+      $params['screen_name'] = $id;
+    }
+    $params['image'] = $image;
+    return $this->call('blocks/create', $params, 'POST', TRUE);
+  }
+
+  /**
+   * Un-blocks the user specified in the ID parameter for the authenticating
+   * user.
+   *
+   * @param mixed $id
+   *   The numeric id or screen name of a Twitter user.
+   * @param array $params
+   *   An array of parameters.
+   * @see https://dev.twitter.com/docs/api/1.1/post/blocks/destroy
+   */
+  public function blocks_destroy($id, $params = array()) {
+    if (is_numeric($id)) {
+      $params['user_id'] = $id;
+    }
+    else {
+      $params['screen_name'] = $id;
+    }
+    $params['image'] = $image;
+    return $this->call('blocks/destroy', $params, 'POST', TRUE);
+  }
+
+  /**
+   * Returns fully-hydrated user objects for up to 100 users per request,
+   * as specified by comma-separated values passed to the user_id and/or
+   * screen_name parameters.
+   *
+   * @param string $screen_name
+   *   A comma separated list of screen names.
+   * @param string user_id
+   *   A comma separated list of user IDs.
+   * @param bool $include_entities
+   *   Whether to include entities or not.
+   * @see https://dev.twitter.com/docs/api/1.1/get/users/lookup
+   */
+  protected function users_lookup($screen_name = NULL, $user_id = NULL,
+                                  $include_entities = NULL) {
+    if ($screen_name !== NULL) {
+      $params['screen_name'] = $screen_name;
+    }
+    if ($user_id !== NULL) {
+      $params['user_id'] = $user_id;
+    }
+    if ($include_entities !== NULL) {
+      $params['include_entities'] = $include_entities;
+    }
+    return $this->get_users('users/lookup', $params);
+  }
+
+  /**
+   * Returns a variety of information about the user specified by the
+   * required user_id or screen_name parameter.
+   *
+   * @param mixed $id
+   *   The numeric id or screen name of a Twitter user.
+   * @param bool $include_entities
+   *   Whether to include entities or not.
+   * @see https://dev.twitter.com/docs/api/1.1/get/users/show
+   */
+  public function users_show($id, $include_entities = NULL) {
     $params = array();
     if (is_numeric($id)) {
       $params['user_id'] = $id;
@@ -670,25 +916,120 @@ class Twitter {
     else {
       $params['screen_name'] = $id;
     }
-
-    $values = $this->call('users/show', $params, 'GET', $use_auth);
-    return new TwitterUser($values);
-  }
-
-  /**
-   *
-   * @see http://apiwiki.twitter.com/Twitter-REST-API-Method%3A-account%C2%A0verify_credentials
-   */
-  public function verify_credentials() {
-    $values = $this->call('account/verify_credentials', array(), 'GET', TRUE);
-    if (!$values) {
-      return FALSE;
+    if ($include_entities !== NULL) {
+      $params['include_entities'] = $include_entities;
     }
+    $values = $this->call('users/show', $params, 'GET');
     return new TwitterUser($values);
   }
 
+  /**
+   * Provides a simple, relevance-based search interface to public user
+   * accounts on Twitter.
+   *
+   * @param string $query
+   *   The search query to run against people search.
+   * @param array $params
+   *   an array of parameters.
+   * @return
+   *   array of TwitterUser objects.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/users/search
+   */
+  public function users_search($query, $params = array()) {
+    $params['q'] = $query;
+    return $this->get_users('users/search', $params);
+  }
 
   /**
+   * Returns a collection of users that the specified user can "contribute" to.
+   *
+   * @param mixed $id
+   *   The numeric id or screen name of a Twitter user.
+   * @param array $params
+   *   an array of parameters.
+   * @see https://dev.twitter.com/docs/api/1.1/get/users/contributees
+   */
+  public function users_contributees($id, $params = array()) {
+    if (is_numeric($id)) {
+      $params['user_id'] = $id;
+    }
+    else {
+      $params['screen_name'] = $id;
+    }
+    return $this->get_users('users/contributees', $params);
+  }
+
+  /**
+   * Returns a collection of users who can contribute to the specified account.
+   *
+   * @param mixed $id
+   *   The numeric id or screen name of a Twitter user.
+   * @param array $params
+   *   an array of parameters.
+   * @see https://dev.twitter.com/docs/api/1.1/get/users/contributors
+   */
+  public function users_contributors($id, $params = array()) {
+    if (is_numeric($id)) {
+      $params['user_id'] = $id;
+    }
+    else {
+      $params['screen_name'] = $id;
+    }
+    return $this->get_users('users/contributors', $params);
+  }
+
+  /**
+   * Removes the uploaded profile banner for the authenticating user.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/post/account/remove_profile_banner
+   */
+  public function account_remove_profile_banner() {
+    return $this->call('account/remove_profile_banner', array(), 'POST');
+  }
+
+  /**
+   * Uploads a profile banner on behalf of the authenticating user.
+   *
+   * @param string $banner
+   *   The Base64-encoded or raw image data being uploaded as the user's new
+   *   profile banner.
+   * @param array $params
+   *   An array of parameters.
+   * @see https://dev.twitter.com/docs/api/1.1/post/account/update_profile_banner
+   */
+  public function account_update_profile_banner($banner, $params = array()) {
+    $params['banner'] = $banner;
+    return $this->call('account/update_profile_banner', $params, 'POST');
+  }
+
+  /**
+   * Returns a map of the available size variations of the specified user's
+   * profile banner.
+   *
+   * @param mixed $id
+   *   The numeric id or screen name of a Twitter user.
+   * @see https://dev.twitter.com/docs/api/1.1/get/users/profile_banner
+   */
+  public function account_profile_banner($id) {
+    if (is_numeric($id)) {
+      $params['user_id'] = $id;
+    }
+    else {
+      $params['screen_name'] = $id;
+    }
+    return $this->call('account/profile_banner', $params, 'GET');
+  }
+
+
+
+
+
+
+
+
+  // The following methods have not being reviewed yet.
+    /**
    * Method for calling any twitter api resource
    */
   public function call($path, $params = array(), $method = 'GET', $use_auth = FALSE) {
