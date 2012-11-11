@@ -5,7 +5,7 @@
  * https://dev.twitter.com/docs/api/1.1
  *
  * Original work my James Walker (@walkah).
- * Upgrade to 1.1 by Juampy (@juampy72).
+ * Upgraded to 1.1 by Juampy (@juampy72).
  */
 
 /**
@@ -17,22 +17,142 @@ class TwitterException extends Exception {}
  * Primary Twitter API implementation class
  */
 class Twitter {
-
   /**
    * @var $source the twitter api 'source'
    */
   protected $source = 'drupal';
 
+  protected $signature_method;
+
+  protected $consumer;
+
+  protected $token;
+
+
+  /********************************************//**
+   * Authentication
+   ***********************************************/
   /**
    * Constructor for the Twitter class
    */
-  public function __construct() {}
+  public function __construct($consumer_key, $consumer_secret, $oauth_token = NULL,
+                              $oauth_token_secret = NULL) {
+    $this->signature_method = new OAuthSignatureMethod_HMAC_SHA1();
+    $this->consumer = new OAuthConsumer($consumer_key, $consumer_secret);
+    if (!empty($oauth_token) && !empty($oauth_token_secret)) {
+      $this->token = new OAuthConsumer($oauth_token, $oauth_token_secret);
+    }
+  }
 
+  public function get_request_token() {
+    $url = $this->create_url('oauth/request_token', '');
+    try {
+      $response = $this->auth_request($url);
+    }
+    catch (TwitterException $e) {
+    }
+    parse_str($response, $token);
+    $this->token = new OAuthConsumer($token['oauth_token'], $token['oauth_token_secret']);
+    return $token;
+  }
+
+  public function get_authorize_url($token) {
+    $url = $this->create_url('oauth/authorize', '');
+    $url.= '?oauth_token=' . $token['oauth_token'];
+
+    return $url;
+  }
+
+  public function get_authenticate_url($token) {
+    $url = $this->create_url('oauth/authenticate', '');
+    $url.= '?oauth_token=' . $token['oauth_token'];
+
+    return $url;
+  }
+
+  public function get_access_token() {
+    $url = $this->create_url('oauth/access_token', '');
+    try {
+      $response = $this->auth_request($url);
+    }
+    catch (TwitterException $e) {
+    }
+    parse_str($response, $token);
+    $this->token = new OAuthConsumer($token['oauth_token'], $token['oauth_token_secret']);
+    return $token;
+  }
+
+  /**
+   * Performs an authenticated request.
+   */
+  public function auth_request($url, $params = array(), $method = 'GET') {
+    $request = OAuthRequest::from_consumer_and_token($this->consumer, $this->token, $method, $url, $params);
+    $request->sign_request($this->signature_method, $this->consumer, $this->token);
+    switch ($method) {
+      case 'GET':
+        return $this->request($request->to_url());
+      case 'POST':
+        return $this->request($request->get_normalized_http_url(), $request->get_parameters(), 'POST');
+    }
+  }
+
+  /**
+   * Performs a request.
+   *
+   * @throws TwitterException
+   */
+  protected function request($url, $params = array(), $method = 'GET', $use_auth = FALSE) {
+    $data = '';
+    if (count($params) > 0) {
+      if ($method == 'GET') {
+        $url .= '?'. http_build_query($params, '', '&');
+      }
+      else {
+        $data = http_build_query($params, '', '&');
+      }
+    }
+
+    $headers = array();
+
+    if ($use_auth) {
+      $headers['Authorization'] = 'Basic '. base64_encode($this->username .':'. $this->password);
+      $headers['Content-type'] = 'application/x-www-form-urlencoded';
+    }
+
+    $response = drupal_http_request($url, array('headers' => $headers, 'method' => $method, 'data' => $data));
+    if (!isset($response->error)) {
+      return $response->data;
+    }
+    else {
+      $error = $response->error;
+      $data = $this->parse_response($response->data);
+      if (isset($data['error'])) {
+        $error = $data['error'];
+      }
+      throw new TwitterException($error);
+    }
+  }
+
+  protected function parse_response($response) {
+    // http://drupal.org/node/985544 - json_decode large integer issue
+    $length = strlen(PHP_INT_MAX);
+    $response = preg_replace('/"(id|in_reply_to_status_id)":(\d{' . $length . ',})/', '"\1":"\2"', $response);
+    return json_decode($response, TRUE);
+  }
+
+  protected function create_url($path) {
+    $url =  variable_get('twitter_api', TWITTER_API) .'/1.1/'. $path . '.json';
+    return $url;
+  }
+
+  /********************************************//**
+   * Helpers used to convert responses in objects
+   ***********************************************/
   /**
    * Get an array of TwitterStatus objects from an API endpoint
    */
-  protected function get_statuses($path, $params = array(), $use_auth = FALSE) {
-    $values = $this->call($path, $params, 'GET', $use_auth);
+  protected function get_statuses($path, $params = array()) {
+    $values = $this->call($path, $params, 'GET');
     // Check on successfull call
     if ($values) {
       $statuses = array();
@@ -53,7 +173,7 @@ class Twitter {
    * Get an array of TwitterUser objects from an API endpoint
    */
   protected function get_users($path, $params = array()) {
-    $values = $this->call($path, $params, 'GET', $use_auth);
+    $values = $this->call($path, $params, 'GET');
     // Check on successfull call
     if ($values) {
       $users = array();
@@ -82,7 +202,7 @@ class Twitter {
    * @see https://dev.twitter.com/docs/api/1.1/get/statuses/mentions_timeline
    */
   public function mentions_timeline($params = array()) {
-    return $this->get_statuses('statuses/mentions_timeline', $params, TRUE);
+    return $this->get_statuses('statuses/mentions_timeline', $params);
   }
 
   /**
@@ -163,7 +283,7 @@ class Twitter {
    * @see https://dev.twitter.com/docs/api/1.1/get/statuses/destroy
    */
   public function statuses_destroy($id, $params = array()) {
-    $values = $this->call('statuses/update', $params, 'POST', TRUE);
+    $values = $this->call('statuses/update', $params, 'POST');
     if ($values) {
       return new TwitterStatus($values);
     }
@@ -184,7 +304,7 @@ class Twitter {
    */
   public function statuses_update($status, $params = array()) {
     $params['status'] = $status;
-    $values = $this->call('statuses/update', $params, 'POST', TRUE);
+    $values = $this->call('statuses/update', $params, 'POST');
     return new TwitterStatus($values);
   }
 
@@ -199,7 +319,7 @@ class Twitter {
    * @see https://dev.twitter.com/docs/api/1.1/post/statuses/retweet/%3Aid
    */
   public function statuses_retweet($id, $params = array()) {
-    $values = $this->call('statuses/retweet/' . $id, $params, 'POST', TRUE);
+    $values = $this->call('statuses/retweet/' . $id, $params, 'POST');
     return new TwitterStatus($values);
   }
 
@@ -218,7 +338,7 @@ class Twitter {
   public function statuses_update_with_media($status, $media, $params = array()) {
     $params['status'] = $status;
     $params['media[]'] = '@{' . implode(',', $media) . '}';
-    $values = $this->call('statuses/statuses/update_with_media', $params, 'POST', TRUE);
+    $values = $this->call('statuses/statuses/update_with_media', $params, 'POST');
     // @TODO support media at TwitterStatus class.
     return new TwitterStatus($values);
   }
@@ -241,7 +361,7 @@ class Twitter {
     else {
       $params['url'] = $id;
     }
-    return $this->call('statuses/oembed', $params, 'GET', TRUE);
+    return $this->call('statuses/oembed', $params, 'GET');
   }
 
   /********************************************//**
@@ -296,7 +416,7 @@ class Twitter {
     if (!empty($locations)) {
       $params['locations'] = $locations;
     }
-    return $this->call('statuses/filter', $params, 'POST', TRUE);
+    return $this->call('statuses/filter', $params, 'POST');
   }
 
   /**
@@ -448,7 +568,7 @@ class Twitter {
     else {
       $params['screen_name'] = $id;
     }
-    return $this->call('direct_messages/new', $params, 'POST', TRUE);
+    return $this->call('direct_messages/new', $params, 'POST');
   }
 
   /********************************************//**
@@ -472,7 +592,7 @@ class Twitter {
     else {
       $params['screen_name'] = $id;
     }
-    return $this->call('friends/ids', $params, 'GET', TRUE);
+    return $this->call('friends/ids', $params, 'GET');
   }
 
   /**
@@ -493,7 +613,7 @@ class Twitter {
     else {
       $params['screen_name'] = $id;
     }
-    return $this->call('followers/ids', $params, 'GET', TRUE);
+    return $this->call('followers/ids', $params, 'GET');
   }
 
   /**
@@ -516,7 +636,7 @@ class Twitter {
     if (!empty($user_id)) {
       $params['user_id'] = $user_id;
     }
-    return $this->call('friendships/lookup', $params, 'GET', TRUE);
+    return $this->call('friendships/lookup', $params, 'GET');
   }
 
   /**
@@ -531,7 +651,7 @@ class Twitter {
    * @see https://dev.twitter.com/docs/api/1.1/get/friendships/incoming
    */
   public function friendships_incoming($params = array()) {
-    return $this->call('friendships/incoming', $params, 'GET', TRUE);
+    return $this->call('friendships/incoming', $params, 'GET');
   }
 
   /**
@@ -546,7 +666,7 @@ class Twitter {
    * @see https://dev.twitter.com/docs/api/1.1/get/friendships/outgoing
    */
   public function friendships_outgoing($params = array()) {
-    return $this->call('friendships/outgoing', $params, 'GET', TRUE);
+    return $this->call('friendships/outgoing', $params, 'GET');
   }
 
   /**
@@ -573,7 +693,7 @@ class Twitter {
     if ($follow !== NULL) {
       $params['follow'] = $id;
     }
-    return $this->call('friendships/create', $params, 'POST', TRUE);
+    return $this->call('friendships/create', $params, 'POST');
   }
 
   /**
@@ -596,7 +716,7 @@ class Twitter {
     else {
       $params['screen_name'] = $id;
     }
-    return $this->call('friendships/destroy', $params, 'POST', TRUE);
+    return $this->call('friendships/destroy', $params, 'POST');
   }
 
   /**
@@ -626,7 +746,7 @@ class Twitter {
     if ($retweets!== NULL) {
       $params['retweets'] = $retweets;
     }
-    return $this->call('friendships/update', $params, 'POST', TRUE);
+    return $this->call('friendships/update', $params, 'POST');
   }
 
   /**
@@ -655,7 +775,7 @@ class Twitter {
     else {
       $params['target_screen_name'] = $target_id;
     }
-    return $this->call('friendships/outgoing', $params, 'GET', TRUE);
+    return $this->call('friendships/outgoing', $params, 'GET');
   }
 
   /********************************************//**
@@ -671,7 +791,7 @@ class Twitter {
    * @see https://dev.twitter.com/docs/api/1.1/get/account/settings
    */
   public function account_settings() {
-    return $this->call('account/settings', $params, 'GET', TRUE);
+    return $this->call('account/settings', $params, 'GET');
   }
 
   /**
@@ -686,7 +806,7 @@ class Twitter {
    * @see https://dev.twitter.com/docs/api/1.1/get/account/verify_credentials
    */
   public function verify_credentials($params = array()) {
-    $values = $this->call('account/verify_credentials', $params, 'GET', TRUE);
+    $values = $this->call('account/verify_credentials', $params, 'GET');
     if (!$values) {
       return FALSE;
     }
@@ -702,7 +822,7 @@ class Twitter {
    * @see https://dev.twitter.com/docs/api/1.1/post/account/settings
    */
   public function account_settings_update($params = array()) {
-    return $this->call('account/settings', $params, 'POST', TRUE);
+    return $this->call('account/settings', $params, 'POST');
   }
 
   /**
@@ -720,7 +840,7 @@ class Twitter {
     if ($include_entities !== NULL) {
       $params['include_entities'] = $include_entities;
     }
-    return $this->call('account/settings', $params, 'POST', TRUE);
+    return $this->call('account/settings', $params, 'POST');
   }
 
   /**
@@ -733,7 +853,7 @@ class Twitter {
    * @see https://dev.twitter.com/docs/api/1.1/post/account/update_profile
    */
   public function account_update_profile($params = array()) {
-    return $this->call('account/update_profile', $params, 'POST', TRUE);
+    return $this->call('account/update_profile', $params, 'POST');
   }
 
   /**
@@ -767,7 +887,7 @@ class Twitter {
     if ($use !== NULL) {
       $params['use'] = $use;
     }
-    return $this->call('account/update_profile_background_image', $params, 'POST', TRUE);
+    return $this->call('account/update_profile_background_image', $params, 'POST');
   }
 
   /**
@@ -780,7 +900,7 @@ class Twitter {
    * @see https://dev.twitter.com/docs/api/1.1/post/account/update_profile_colors
    */
   public function account_update_profile_colors($params = array()) {
-    return $this->call('account_update_profile_colors', $params, 'POST', TRUE);
+    return $this->call('account_update_profile_colors', $params, 'POST');
   }
 
   /**
@@ -796,7 +916,7 @@ class Twitter {
    */
   public function account_update_profile_image($image, $params = array()) {
     $params['image'] = $image;
-    return $this->call('account_update_profile_image', $params, 'POST', TRUE);
+    return $this->call('account_update_profile_image', $params, 'POST');
   }
 
   /**
@@ -810,7 +930,7 @@ class Twitter {
    * @see https://dev.twitter.com/docs/api/1.1/get/blocks/list
    */
   public function blocks_list($params = array()) {
-    $values = $this->call('blocks/list', $params, 'GET', TRUE);
+    $values = $this->call('blocks/list', $params, 'GET');
     if (!$values) {
       return FALSE;
     }
@@ -827,7 +947,7 @@ class Twitter {
    * @see https://dev.twitter.com/docs/api/1.1/get/blocks/ids
    */
   public function blocks_ids($params = array()) {
-    return $this->call('blocks/ids', $params, 'GET', TRUE);
+    return $this->call('blocks/ids', $params, 'GET');
   }
 
   /**
@@ -847,7 +967,7 @@ class Twitter {
       $params['screen_name'] = $id;
     }
     $params['image'] = $image;
-    return $this->call('blocks/create', $params, 'POST', TRUE);
+    return $this->call('blocks/create', $params, 'POST');
   }
 
   /**
@@ -868,7 +988,7 @@ class Twitter {
       $params['screen_name'] = $id;
     }
     $params['image'] = $image;
-    return $this->call('blocks/destroy', $params, 'POST', TRUE);
+    return $this->call('blocks/destroy', $params, 'POST');
   }
 
   /**
@@ -1021,27 +1141,14 @@ class Twitter {
     return $this->call('account/profile_banner', $params, 'GET');
   }
 
-
-
-
-
-
-
-
-  // The following methods have not being reviewed yet.
-    /**
-   * Method for calling any twitter api resource
+  /**
+   * Calls a Twitter API endpoint.
    */
-  public function call($path, $params = array(), $method = 'GET', $use_auth = FALSE) {
+  public function call($path, $params = array(), $method = 'GET') {
     $url = $this->create_url($path);
 
     try {
-      if ($use_auth) {
-        $response = $this->auth_request($url, $params, $method);
-      }
-      else {
-        $response = $this->request($url, $params, $method);
-      }
+      $response = $this->auth_request($url, $params, $method);
     }
     catch (TwitterException $e) {
       watchdog('twitter', '!message', array('!message' => $e->__toString()), WATCHDOG_ERROR);
@@ -1054,136 +1161,6 @@ class Twitter {
 
     return $this->parse_response($response);
   }
-
-  /**
-   * Perform an authentication required request.
-   */
-  protected function auth_request($path, $params = array(), $method = 'GET') {
-    if (empty($this->username) || empty($this->password)) {
-      return false;
-    }
-
-    return $this->request($path, $params, $method, TRUE);
-  }
-
-  /**
-   * Perform a request
-   *
-   * @throws TwitterException
-   */
-  protected function request($url, $params = array(), $method = 'GET', $use_auth = FALSE) {
-    $data = '';
-    if (count($params) > 0) {
-      if ($method == 'GET') {
-        $url .= '?'. http_build_query($params, '', '&');
-      }
-      else {
-        $data = http_build_query($params, '', '&');
-      }
-    }
-
-    $headers = array();
-
-    if ($use_auth) {
-      $headers['Authorization'] = 'Basic '. base64_encode($this->username .':'. $this->password);
-      $headers['Content-type'] = 'application/x-www-form-urlencoded';
-    }
-
-    $response = drupal_http_request($url, array('headers' => $headers, 'method' => $method, 'data' => $data));
-    if (!isset($response->error)) {
-      return $response->data;
-    }
-    else {
-      $error = $response->error;
-      $data = $this->parse_response($response->data);
-      if (isset($data['error'])) {
-        $error = $data['error'];
-      }
-      throw new TwitterException($error);
-    }
-  }
-
-  protected function parse_response($response) {
-    // http://drupal.org/node/985544 - json_decode large integer issue
-    $length = strlen(PHP_INT_MAX);
-    $response = preg_replace('/"(id|in_reply_to_status_id)":(\d{' . $length . ',})/', '"\1":"\2"', $response);
-    return json_decode($response, TRUE);
-  }
-
-  protected function create_url($path) {
-    $url =  variable_get('twitter_api', TWITTER_API) .'/1.1/'. $path . '.json';
-    return $url;
-  }
-}
-
-/**
- * A class to provide OAuth enabled access to the twitter API
- */
-class TwitterOAuth extends Twitter {
-
-  protected $signature_method;
-
-  protected $consumer;
-
-  protected $token;
-
-  public function __construct($consumer_key, $consumer_secret, $oauth_token = NULL, $oauth_token_secret = NULL) {
-    $this->signature_method = new OAuthSignatureMethod_HMAC_SHA1();
-    $this->consumer = new OAuthConsumer($consumer_key, $consumer_secret);
-    if (!empty($oauth_token) && !empty($oauth_token_secret)) {
-      $this->token = new OAuthConsumer($oauth_token, $oauth_token_secret);
-    }
-  }
-
-  public function get_request_token() {
-    $url = $this->create_url('oauth/request_token', '');
-    try {
-      $response = $this->auth_request($url);
-    }
-    catch (TwitterException $e) {
-    }
-    parse_str($response, $token);
-    $this->token = new OAuthConsumer($token['oauth_token'], $token['oauth_token_secret']);
-    return $token;
-  }
-
-  public function get_authorize_url($token) {
-    $url = $this->create_url('oauth/authorize', '');
-    $url.= '?oauth_token=' . $token['oauth_token'];
-
-    return $url;
-  }
-
-  public function get_authenticate_url($token) {
-    $url = $this->create_url('oauth/authenticate', '');
-    $url.= '?oauth_token=' . $token['oauth_token'];
-
-    return $url;
-  }
-
-  public function get_access_token() {
-    $url = $this->create_url('oauth/access_token', '');
-    try {
-      $response = $this->auth_request($url);
-    }
-    catch (TwitterException $e) {
-    }
-    parse_str($response, $token);
-    $this->token = new OAuthConsumer($token['oauth_token'], $token['oauth_token_secret']);
-    return $token;
-  }
-
-  public function auth_request($url, $params = array(), $method = 'GET') {
-    $request = OAuthRequest::from_consumer_and_token($this->consumer, $this->token, $method, $url, $params);
-    $request->sign_request($this->signature_method, $this->consumer, $this->token);
-    switch ($method) {
-      case 'GET':
-        return $this->request($request->to_url());
-      case 'POST':
-        return $this->request($request->get_normalized_http_url(), $request->get_parameters(), 'POST');
-    }
-  }
-
 }
 
 /**
@@ -1282,8 +1259,6 @@ class TwitterUser {
 
   public $status;
 
-  protected $password;
-
   protected $oauth_token;
 
   protected $oauth_token_secret;
@@ -1321,7 +1296,7 @@ class TwitterUser {
   }
 
   public function get_auth() {
-    return array('password' => $this->password, 'oauth_token' => $this->oauth_token, 'oauth_token_secret' => $this->oauth_token_secret);
+    return array('oauth_token' => $this->oauth_token, 'oauth_token_secret' => $this->oauth_token_secret);
   }
 
   public function set_auth($values) {
