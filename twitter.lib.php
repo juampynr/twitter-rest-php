@@ -45,11 +45,14 @@ class Twitter {
   }
 
   public function get_request_token() {
-    $url = $this->create_url('oauth/request_token', '');
+    $url = variable_get('twitter_api', TWITTER_API) . '/oauth/request_token';
     try {
-      $response = $this->auth_request($url);
+      $params = array('oauth_callback' => url('twitter/oauth', array('absolute' => TRUE)));
+      $response = $this->auth_request($url, $params);
     }
     catch (TwitterException $e) {
+      watchdog('twitter', '!message', array('!message' => $e->__toString()), WATCHDOG_ERROR);
+      return FALSE;
     }
     parse_str($response, $token);
     $this->token = new OAuthConsumer($token['oauth_token'], $token['oauth_token_secret']);
@@ -57,25 +60,27 @@ class Twitter {
   }
 
   public function get_authorize_url($token) {
-    $url = $this->create_url('oauth/authorize', '');
+    $url = variable_get('twitter_api', TWITTER_API) . '/oauth/authorize';
     $url.= '?oauth_token=' . $token['oauth_token'];
 
     return $url;
   }
 
   public function get_authenticate_url($token) {
-    $url = $this->create_url('oauth/authenticate', '');
+    $url = variable_get('twitter_api', TWITTER_API) . '/oauth/authenticate';
     $url.= '?oauth_token=' . $token['oauth_token'];
 
     return $url;
   }
 
   public function get_access_token() {
-    $url = $this->create_url('oauth/access_token', '');
+-    $url = variable_get('twitter_api', TWITTER_API) . '/oauth/access_token';
     try {
       $response = $this->auth_request($url);
     }
     catch (TwitterException $e) {
+      watchdog('twitter', '!message', array('!message' => $e->__toString()), WATCHDOG_ERROR);
+      return FALSE;
     }
     parse_str($response, $token);
     $this->token = new OAuthConsumer($token['oauth_token'], $token['oauth_token_secret']);
@@ -139,9 +144,18 @@ class Twitter {
     $response = preg_replace('/"(id|in_reply_to_status_id)":(\d{' . $length . ',})/', '"\1":"\2"', $response);
     return json_decode($response, TRUE);
   }
-
-  protected function create_url($path) {
-    $url =  variable_get('twitter_api', TWITTER_API) .'/1.1/'. $path . '.json';
+  /**
+   * Creates an API endpoint URL.
+   *
+   * @param string $path
+   *   The path of the endpoint.
+   * @param string $format
+   *   The format of the endpoint to be appended at the end of the path.
+   * @return
+   *   The complete path to the endpoint.
+   */
+  protected function create_url($path, $format = '.json') {
+    $url =  variable_get('twitter_api', TWITTER_API) .'/1.1/'. $path . $format;
     return $url;
   }
 
@@ -762,7 +776,7 @@ class Twitter {
    *
    * @see https://dev.twitter.com/docs/api/1.1/get/friendships/show
    */
-  public function friendships_outgoing($source_id, $target_id) {
+  public function friendships_show($source_id, $target_id) {
     if (is_numeric($source_id)) {
       $params['source_id'] = $source_id;
     }
@@ -775,7 +789,7 @@ class Twitter {
     else {
       $params['target_screen_name'] = $target_id;
     }
-    return $this->call('friendships/outgoing', $params, 'GET');
+    return $this->call('friendships/show', $params, 'GET');
   }
 
   /********************************************//**
