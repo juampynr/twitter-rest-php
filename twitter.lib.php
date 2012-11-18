@@ -106,7 +106,7 @@ class Twitter {
    *
    * @throws TwitterException
    */
-  protected function request($url, $params = array(), $method = 'GET', $use_auth = FALSE) {
+  protected function request($url, $params = array(), $method = 'GET') {
     $data = '';
     if (count($params) > 0) {
       if ($method == 'GET') {
@@ -119,10 +119,8 @@ class Twitter {
 
     $headers = array();
 
-    if ($use_auth) {
-      $headers['Authorization'] = 'Basic '. base64_encode($this->username .':'. $this->password);
-      $headers['Content-type'] = 'application/x-www-form-urlencoded';
-    }
+    $headers['Authorization'] = 'Oauth';
+    $headers['Content-type'] = 'application/x-www-form-urlencoded';
 
     $response = drupal_http_request($url, array('headers' => $headers, 'method' => $method, 'data' => $data));
     if (!isset($response->error)) {
