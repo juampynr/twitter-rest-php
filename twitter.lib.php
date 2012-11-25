@@ -122,7 +122,7 @@ class Twitter {
     $headers['Authorization'] = 'Oauth';
     $headers['Content-type'] = 'application/x-www-form-urlencoded';
 
-    $response = drupal_http_request($url, array('headers' => $headers, 'method' => $method, 'data' => $data));
+    $response = $this->doRequest($url, $headers, $method, $data);
     if (!isset($response->error)) {
       return $response->data;
     }
@@ -134,6 +134,26 @@ class Twitter {
       }
       throw new TwitterException($error);
     }
+  }
+
+  /**
+   * Actually performs a request.
+   *
+   * This method can be easily overriden through inheritance.
+   *
+   * @param string $url
+   *   The url of the endpoint.
+   * @param array $headers
+   *   Array of headers.
+   * @param string $method
+   *   The HTTP method to use (normally POST or GET).
+   * @param array $data
+   *   An array of parameters
+   * @return
+   *   stdClass response object.
+   */
+  protected function doRequest($url, $headers, $method, $data) {
+    return drupal_http_request($url, array('headers' => $headers, 'method' => $method, 'data' => $data));
   }
 
   protected function parse_response($response) {
