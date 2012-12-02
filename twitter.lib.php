@@ -1173,6 +1173,32 @@ class Twitter {
     return $this->call('account/profile_banner', $params, 'GET');
   }
 
+  /********************************************//**
+   * Favorites
+   ***********************************************/
+  /**
+   * Returns the 20 most recent favorited tweets for a user.
+   *
+   * @param mixed $id
+   *   The numeric id or screen name of a Twitter user.
+   * @param array $params
+   *   an array of parameters.
+   *
+   * @see https://dev.twitter.com/docs/api/1.1/get/favorites/list
+   */
+  public function favorites_list($id, $params = array()) {
+    if (is_numeric($id)) {
+      $params['user_id'] = $id;
+    }
+    else {
+      $params['screen_name'] = $id;
+    }
+    return $this->get_statuses('favorites/list', $params);
+  }
+
+  /********************************************//**
+   * Utilities
+   ***********************************************/
   /**
    * Calls a Twitter API endpoint.
    */
@@ -1327,12 +1353,34 @@ class TwitterUser {
     }
   }
 
+  /**
+   * Returns an array with the authentication tokens.
+   *
+   * @return
+   *   array with the oauth token key and secret.
+   */
   public function get_auth() {
     return array('oauth_token' => $this->oauth_token, 'oauth_token_secret' => $this->oauth_token_secret);
   }
 
+  /**
+   * Sets the authentication tokens to a user.
+   *
+   * @param array $values
+   *   Array with 'oauth_token' and 'oauth_token_secret' keys.
+   */
   public function set_auth($values) {
     $this->oauth_token = isset($values['oauth_token'])?$values['oauth_token']:NULL;
     $this->oauth_token_secret = isset($values['oauth_token_secret'])?$values['oauth_token_secret']:NULL;
+  }
+
+  /**
+   * Checks whether the account is authenticated or not.
+   *
+   * @return
+   *   boolean TRUE when the account is authenticated.
+   */
+  public function is_auth() {
+    return !empty($this->oauth_token) && !empty($this->oauth_token_secret);
   }
 }
