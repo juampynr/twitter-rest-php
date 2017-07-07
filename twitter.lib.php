@@ -74,7 +74,7 @@ class Twitter {
   }
 
   public function get_access_token() {
--    $url = variable_get('twitter_api', TWITTER_API) . '/oauth/access_token';
+    $url = variable_get('twitter_api', TWITTER_API) . '/oauth/access_token';
     try {
       $response = $this->auth_request($url);
     }
